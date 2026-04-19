@@ -237,15 +237,17 @@ def handle_mention(event, say, client):
 
 @app.event("message")
 def handle_dm(event, say):
-    if event.get("channel_type") != "im":
+    channel_type = event.get("channel_type")
+    if channel_type not in ("im", "mpim"):
         return
     if event.get("bot_id"):
         return
     user_id = event["user"]
+    channel_id = event["channel"]
     text    = event.get("text", "").strip()
     if not text:
         return
-    say(text=call_fengo(user_id, text))
+    say(text=call_fengo(user_id, text, channel_id=channel_id))
 
 
 scheduler = BackgroundScheduler(timezone="Africa/Cairo")

@@ -1,14 +1,20 @@
 import os
 import re
 import anthropic
+from dotenv import load_dotenv
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
 from apscheduler.schedulers.background import BackgroundScheduler
 
-SLACK_BOT_TOKEN   = os.environ["SLACK_BOT_TOKEN"]
-SLACK_APP_TOKEN   = os.environ["SLACK_APP_TOKEN"]
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+load_dotenv()
+
+SLACK_BOT_TOKEN   = os.environ.get("SLACK_BOT_TOKEN", "")
+SLACK_APP_TOKEN   = os.environ.get("SLACK_APP_TOKEN", "")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN or not ANTHROPIC_API_KEY:
+    raise RuntimeError("Missing required environment variables: SLACK_BOT_TOKEN, SLACK_APP_TOKEN, ANTHROPIC_API_KEY")
 
 CHANNELS = {
     "payment_requests": "C09UPEGG2MV",
@@ -65,7 +71,6 @@ def call_fengo(user_id, user_message, channel_id=None):
     enriched = user_message
     keywords = ["introduce", "summarise", "summary", "payment", "outstanding",
                 "otp", "pending", "confirm", "hello", "requests"]
-
     if any(kw in user_message.lower() for kw in keywords) and channel_id:
         history = get_channel_history(channel_id)
         enriched = (
@@ -77,12 +82,11 @@ def call_fengo(user_id, user_message, channel_id=None):
     conversation_histories[user_id].append({"role": "user", "content": enriched})
 
     response = claude.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
         messages=conversation_histories[user_id][-20:]
     )
-
     reply = response.content[0].text
     conversation_histories[user_id].append({"role": "assistant", "content": reply})
     return reply
@@ -91,26 +95,24 @@ def call_fengo(user_id, user_message, channel_id=None):
 @app.event("app_mention")
 def handle_mention(event, say, client):
     user_id = event["user"]
-    channel = event["channel"]
-    clean   = re.sub(r"<@[A-Z0-9]+>", "", event["text"]).strip()
+    channel  = event["channel"]
+    clean    = re.sub(r"<@[A-Z0-9]+>", "", event["text"]).strip()
     if not clean:
         clean = "Please introduce yourself"
 
     try:
-        client.reactions_add(channel=channel, name="hourglass_flowing_sand",
-                             timestamp=event["ts"])
+        client.reactions_add(channel=channel, name="hourglass_flowing_sand", timestamp=event["ts"])
     except Exception:
         pass
 
     reply = call_fengo(user_id, clean, channel_id=channel)
 
     try:
-        client.reactions_remove(channel=channel, name="hourglass_flowing_sand",
-                                timestamp=event["ts"])
+        client.reactions_remove(channel=channel, name="hourglass_flowing_sand", timestamp=event["ts"])
     except Exception:
         pass
 
-    client.chat_postEphemeral(channel=channel, user=user_id, text=reply)
+    say(text=reply)
 
 
 @app.event("message")

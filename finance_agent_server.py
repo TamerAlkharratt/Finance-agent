@@ -13,12 +13,12 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 # ── Channel IDs (replace with your actual Slack channel IDs) ──────────────
 CHANNELS = {
-    "finance_agent": "C_FINANCE_AGENT",   # #finance-agent
-    "ar_reminders":  "C_AR_REMINDERS",    # #ar-reminders
-    "ap_approvals":  "C_AP_APPROVALS",    # #ap-approvals
-    "daily_digest":  "C_DAILY_DIGEST",    # #daily-digest
-    "bookkeeping":   "C_BOOKKEEPING",     # #bookkeeping
-    "cash_flow":     "C_CASH_FLOW",       # #cash-flow
+    "finance_agent": "C09UPEGG2MV",   # #finance-agent
+    "ar_reminders":  "C09UPEGG2MV",    # #ar-reminders
+    "ap_approvals":  "C01TH9A90JH",    # #ap-approvals
+    "daily_digest":  "C01TH9A90JH",    # #daily-digest
+    "bookkeeping":   "C01TH9A90JH",     # #bookkeeping
+    "cash_flow":     "C01TH9A90JH",       # #cash-flow
 }
 
 # ── Clients ────────────────────────────────────────────────────────────────

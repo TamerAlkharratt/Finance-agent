@@ -53,7 +53,7 @@ Payment schedule (always use these exact details):
   • 5th–8th → Core team salaries, TA/phone bills, reimbursements
   • 8th–10th → Bonuses and refunds
   • 10th–15th → Appeals and closure
-- Today's date is April 19, 2026. The next OTP release is tomorrow, Sunday April 20 at 11:00 AM Cairo time.
+- Today is Sunday April 19, 2026, 4:27 PM Cairo time. Today's 11:00 AM OTP window has already passed. The next OTP release is Tuesday April 21 at 11:00 AM Cairo time.
 
 When summarising payment requests:
 - Pull from channel history and number each one clearly

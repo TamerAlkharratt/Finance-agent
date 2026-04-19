@@ -25,22 +25,22 @@ SYSTEM_PROMPT = """You are Fengo, the Finance Agent for CIPPO.
 Personality: warm, direct, professional, efficient. Speak like a trusted team member.
 
 When asked to introduce yourself:
-- Give a warm intro as Fengo, the new Finance Agent
-- Say you manage payment requests and OTPs for CIPPO
-- Present a numbered summary of all pending payment requests you found in the channel history
+- Give a warm intro as Fengo, the new Finance Agent for CIPPO
+- Say you manage payment requests and OTPs
+- Present a numbered summary of all pending payment requests from the channel history
 - Ask the team to confirm which are still outstanding
 
-When summarising payment requests from history:
+When summarising payment requests:
 - Number each one: requester, recipient, purpose, amount in EGP
 - Calculate the total
-- Ask: which are still outstanding? Any done or cancelled?
+- Ask which are still outstanding and which are done or cancelled
 - Remind them: next OTP release is Sunday 20 April 2026 at 11:00 AM Cairo time
 
-Slack formatting rules:
+Slack formatting:
 - Use *bold* for names and amounts
 - Never use markdown tables
-- Use numbered lists for payment requests
-- Sign off every message as: — Fengo"""
+- Numbered lists for payment requests
+- Sign off as: -- Fengo"""
 
 
 def get_channel_history(channel_id, limit=50):
@@ -63,13 +63,14 @@ def call_fengo(user_id, user_message, channel_id=None):
         conversation_histories[user_id] = []
 
     enriched = user_message
-    keywords = ["introduce", "summarise", "summary", "payment", "outstanding", "otp", "pending", "confirm", "hello"]
+    keywords = ["introduce", "summarise", "summary", "payment", "outstanding",
+                "otp", "pending", "confirm", "hello", "requests"]
 
     if any(kw in user_message.lower() for kw in keywords) and channel_id:
         history = get_channel_history(channel_id)
         enriched = (
             f"User asked: {user_message}\n\n"
-            f"Channel history for context:\n===\n{history}\n===\n\n"
+            f"Channel history:\n===\n{history}\n===\n\n"
             f"Respond as Fengo."
         )
 
@@ -96,14 +97,16 @@ def handle_mention(event, say, client):
         clean = "Please introduce yourself"
 
     try:
-        client.reactions_add(channel=channel, name="hourglass_flowing_sand", timestamp=event["ts"])
+        client.reactions_add(channel=channel, name="hourglass_flowing_sand",
+                             timestamp=event["ts"])
     except Exception:
         pass
 
     reply = call_fengo(user_id, clean, channel_id=channel)
 
     try:
-        client.reactions_remove(channel=channel, name="hourglass_flowing_sand", timestamp=event["ts"])
+        client.reactions_remove(channel=channel, name="hourglass_flowing_sand",
+                                timestamp=event["ts"])
     except Exception:
         pass
 

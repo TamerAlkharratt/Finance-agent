@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import anthropic
 from dotenv import load_dotenv
 from slack_bolt import App
@@ -67,11 +68,69 @@ When answering questions:
 - If something is unclear, ask a quick follow-up rather than assuming
 - If a payment falls outside the current window, gently flag it and explain when it will be processed
 
+Sending direct messages to members:
+- If the admin asks you to send a message to someone (e.g. "send Hana a message about her payment" or "DM Mina that her request is approved"), use the send_dm tool
+- Look up the member by their first name or display name from the workspace
+- Compose a warm, clear message on Fengo's behalf matching the request
+- Confirm back to the admin after sending
+
 Slack formatting rules:
 - Use *bold* for names and amounts
 - No markdown tables
 - Numbered lists for payment requests
 - Keep messages scannable — short paragraphs or lists, not walls of text"""
+
+TOOLS = [
+    {
+        "name": "send_dm",
+        "description": "Send a direct message to a Slack workspace member by their name. Use this when the admin asks Fengo to message or notify someone.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "recipient_name": {
+                    "type": "string",
+                    "description": "The display name or first name of the person to message (e.g. 'Hana', 'Mina Mourad')"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "The message to send to them, written warmly in Fengo's voice"
+                }
+            },
+            "required": ["recipient_name", "message"]
+        }
+    }
+]
+
+
+def lookup_user_id(name):
+    """Find a Slack user ID by matching display name or real name."""
+    try:
+        result = client.users_list()
+        name_lower = name.lower().strip()
+        for member in result.get("members", []):
+            if member.get("deleted") or member.get("is_bot"):
+                continue
+            display = (member.get("profile", {}).get("display_name") or "").lower()
+            real    = (member.get("profile", {}).get("real_name") or "").lower()
+            if name_lower in display or name_lower in real:
+                return member["id"]
+    except Exception as e:
+        print(f"Error looking up user: {e}")
+    return None
+
+
+def execute_send_dm(recipient_name, message):
+    """Open a DM channel and send the message."""
+    user_id = lookup_user_id(recipient_name)
+    if not user_id:
+        return f"Could not find a member named '{recipient_name}' in the workspace."
+    try:
+        dm = client.conversations_open(users=user_id)
+        channel_id = dm["channel"]["id"]
+        client.chat_postMessage(channel=channel_id, text=message)
+        return f"Message sent to {recipient_name} ✅"
+    except Exception as e:
+        return f"Failed to send message to {recipient_name}: {e}"
 
 
 def get_channel_history(channel_id, limit=50):
@@ -106,15 +165,51 @@ def call_fengo(user_id, user_message, channel_id=None):
 
     conversation_histories[user_id].append({"role": "user", "content": enriched})
 
-    response = claude.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1000,
-        system=SYSTEM_PROMPT,
-        messages=conversation_histories[user_id][-20:]
-    )
-    reply = response.content[0].text
-    conversation_histories[user_id].append({"role": "assistant", "content": reply})
-    return reply
+    # Agentic loop — handle tool use
+    while True:
+        response = claude.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            system=SYSTEM_PROMPT,
+            tools=TOOLS,
+            messages=conversation_histories[user_id][-20:]
+        )
+
+        # Append assistant turn
+        conversation_histories[user_id].append({
+            "role": "assistant",
+            "content": response.content
+        })
+
+        if response.stop_reason == "tool_use":
+            tool_results = []
+            for block in response.content:
+                if block.type == "tool_use":
+                    if block.name == "send_dm":
+                        result_text = execute_send_dm(
+                            block.input["recipient_name"],
+                            block.input["message"]
+                        )
+                    else:
+                        result_text = "Unknown tool."
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_text
+                    })
+
+            conversation_histories[user_id].append({
+                "role": "user",
+                "content": tool_results
+            })
+            # Loop again to get final reply
+            continue
+
+        # stop_reason == "end_turn" — extract text reply
+        for block in response.content:
+            if hasattr(block, "text"):
+                return block.text
+        return ""
 
 
 @app.event("app_mention")
